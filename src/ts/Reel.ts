@@ -24,7 +24,9 @@ class Reel {
     private startSoundId: string = 'Start_Button' ;
     private sounds: TsoundData[] ;
 
-    private app: any = new PIXI.Application({width: 600, height: 400}) ;
+    private maskSize: {width: number, height: number} ;
+    private fallingVelocity: number = 10 ;
+    private app: any ;
     private reel: HTMLElement = document.querySelector('#reel') ;
     private startButton: HTMLImageElement = document.querySelector('#button') ;
     private symbols: TfallingSymbol[] ;
@@ -45,13 +47,13 @@ class Reel {
         pressedButton: <string>'./images/ui/btn_spin_pressed.png'
     } ;
 
-    constructor() {
-
-    }
+    constructor(private symbolWidth: number, private rows: number, private columns: number) {  }
 
     public createReel(): void {
+        this.setApp() ;
         this.reel.appendChild(this.app.view) ;
         this.createSoundsData() ;
+
 
         this.app.loader
         .add(this.symbolsSrc)
@@ -68,18 +70,22 @@ class Reel {
             this.app.ticker.add((delta: any): void => gameLoop(delta)) ;
 
             const gameLoop = (delta: any): void => {
-                this.symbols.forEach((item: TfallingSymbol) => {
-                    const { image, endY, velocity } = item ;
+                this.symbols.forEach((symb: TfallingSymbol) => {
+                    const { image, endY, velocity } = symb ;
+                    const remainingDistance: number = endY - image.y ;
 
                     image.y += velocity ;
                     control.reelSpining = velocity > 0 ;
 
-                    if (image.y === endY && control.reelSpining) {
+                    if (remainingDistance === 0 && control.reelSpining) {
                         this.playStopSound() ;
 
-                        item.velocity = 0 ;
+                        symb.velocity = 0 ;
+                    } else if (remainingDistance > 0 && remainingDistance < velocity) {
+                        image.y = endY ;
                     }
                 });
+
 
                 if (this.symbols.every((item: TfallingSymbol) => item.image.y > maskHeight)) {
                     this.symbols = createNewImages() ;
@@ -94,12 +100,25 @@ class Reel {
         });
     }
 
+    private setMaskSize(): void {
+        const width: number = this.symbolWidth * this.columns ;
+        const height: number = this.symbolWidth * (this.rows + 1) ;
+
+        this.maskSize = { width, height } ;
+    }
+
+    private setApp(): void {
+        this.setMaskSize() ;
+
+        this.app = new PIXI.Application(this.maskSize) ;
+    }
+
     private createImages(arrSrc: string[], maskHeight: number, resources: any): TfallingSymbol[] {
         const symbols: TfallingSymbol[] = [] ;
-        const symbolsInRow: number = 5 ;
-        const symbolsInColumn: number = 3 ;
+        const symbolsInRow: number = this.columns ;
+        const symbolsInColumn: number = this.rows ;
         const symbolsAmount: number = symbolsInRow * symbolsInColumn ;
-        const symbolWidth: number = 100 ;
+        const { symbolWidth } = this ;
 
         const startVelocity: number = 0 ;
         let columnCounter: number = 0 ;
@@ -122,12 +141,10 @@ class Reel {
             this.setImageAttributes(symbolInitialData) ;
 
             columnCounter++ ;
-            rowCounter++ ;
 
             if (columnCounter > (symbolsInRow - 1)) {
                 columnCounter = 0 ;
-            } else if (rowCounter > symbolsInColumn) {
-                rowCounter = 1 ;
+                rowCounter++ ;
             }
         }
 
@@ -151,15 +168,15 @@ class Reel {
         image.anchor.y = anchorY ;
 
         this.app.stage.addChild(image) ;
-    };
+    }
 
     private startReelSpining(): void {
         this.symbols.forEach((symbolItem: TfallingSymbol) => {
             setTimeout(() => {
-                symbolItem.velocity = 10;
+                symbolItem.velocity = this.fallingVelocity;
             }, symbolItem.delay);
         });
-    };
+    }
 
     private handleButtonAction(): void {
         const { startButton } = this ;
@@ -168,7 +185,7 @@ class Reel {
         startButton.addEventListener('mousedown', this.buttonMouseDownHandler) ;
         startButton.addEventListener('mouseover', this.buttonMouseOverHandler) ;
         startButton.addEventListener('mouseout', this.buttonMouseOutHandler) ;
-    };
+    }
 
     private buttonMouseUpHandler = (e: Event): void => {
         const { startButton, buttonSrc } = this ;
@@ -182,25 +199,25 @@ class Reel {
         startButton.removeEventListener('mouseout', this.buttonMouseOutHandler) ;
 
         this.startReelSpining() ;
-    };
+    }
 
     private buttonMouseDownHandler = (e: Event): void => {
         const { startButton, buttonSrc } = this ;
 
         startButton.src = buttonSrc.pressedButton;
-    };
+    }
 
     private buttonMouseOverHandler = (e: Event): void => {
         const { startButton, buttonSrc } = this ;
 
         startButton.src = buttonSrc.hoverButton;
-    };
+    }
 
     private buttonMouseOutHandler = (e: Event): void => {
         const { startButton, buttonSrc } = this ;
 
         startButton.src = buttonSrc.normalButton;
-    };
+    }
 
     private createStopSoundsIds(amountStopSounds: number): void {
         const baseStopName: string = 'Reel_Stop_' ;
@@ -212,7 +229,7 @@ class Reel {
         }
 
         this.stopSoundsIds = ids ;
-    };
+    }
 
     private createSoundsData(): void {
         this.createStopSoundsIds(5) ;
@@ -232,7 +249,7 @@ class Reel {
 
         this.sounds = soundsData ;
         this.soundJS.registerSounds( this.sounds, this.soundsPath ) ;
-    };
+    }
 
     private playStopSound(): void {
         const { stopSoundsIds } = this ;
@@ -243,7 +260,7 @@ class Reel {
         this.soundJS.play(stopSoundId) ;
 
         console.log(stopSoundId) ;
-    };
+    }
 }
 
 export default Reel ;
