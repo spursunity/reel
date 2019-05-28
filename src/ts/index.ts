@@ -1,8 +1,16 @@
-import PIXI from '../js/index';
-import '../css/main.css';
+import PIXI from '../js/index' ;
+import '../css/main.css' ;
 
 window.addEventListener('load', () => {
-    const app: any = new PIXI.Application({width: 600, height: 400});
+    const soundJS: any = createjs.Sound ;
+    const soundsPath: string = './sounds/' ;
+    const stopSoundsIds: string[] = createStopSoundsIds(5) ;
+    const startSoundId: string = 'Start_Button' ;
+    const sounds: TsoundData[] = createSoundsData(startSoundId, stopSoundsIds) ;
+
+    soundJS.registerSounds( sounds, soundsPath ) ;
+
+    const app: any = new PIXI.Application({width: 600, height: 400}) ;
     const reel: HTMLElement = document.querySelector('#reel') ;
     const startButton: HTMLImageElement = document.querySelector('#button') ;
     const symbolsSrc: string[] = [
@@ -33,8 +41,13 @@ window.addEventListener('load', () => {
     type TcontrolIs = {
         reelSpining: boolean
     } ;
+    type TsoundData = {
+        src: string,
+        id: string
+    } ;
 
-    reel.appendChild(app.view);
+
+    reel.appendChild(app.view) ;
 
     app.loader
     .add(symbolsSrc)
@@ -48,20 +61,17 @@ window.addEventListener('load', () => {
 
         handleButtonAction(symbols) ;
 
-        app.ticker.add((delta: any): void => gameLoop(delta));
+        app.ticker.add((delta: any): void => gameLoop(delta)) ;
 
         function gameLoop(delta: any): void {
             symbols.forEach((item) => {
-                const { image, startY, endY, velocity } = item ;
+                const { image, endY, velocity } = item ;
 
                 image.y += velocity ;
                 control.reelSpining = velocity > 0 ;
 
                 if (image.y === endY && control.reelSpining) {
-                    const soundNumber = Math.ceil(Math.random() * 5) ;
-                    const soundId = `reel_stop_${soundNumber}` ;
-
-                    console.log(soundId);
+                    playStopSound() ;
 
                     item.velocity = 0 ;
                 }
@@ -70,10 +80,10 @@ window.addEventListener('load', () => {
             if (symbols.every(item => item.image.y > maskHeight)) {
                 symbols = createNewImages() ;
                 startReelSpining(symbols) ;
-                console.log('start');
+                console.log('start') ;
             } else if ( symbols.every(item => item.velocity === 0) && control.reelSpining ) {
                 handleButtonAction(symbols) ;
-                console.log('stop');
+                console.log('stop') ;
                 control.reelSpining = false ;
             }
         }
@@ -116,7 +126,7 @@ window.addEventListener('load', () => {
             }
         }
 
-        return symbols;
+        return symbols ;
     }
 
     function setImageAttributes(symbolItem: TfallingSymbol): void {
@@ -146,19 +156,21 @@ window.addEventListener('load', () => {
         });
     };
 
-    function handleButtonAction(symbolsData: TfallingSymbol[]) {
-        startButton.addEventListener('mouseup', buttonMouseUpHandler);
-        startButton.addEventListener('mousedown', buttonMouseDownHandler);
-        startButton.addEventListener('mouseover', buttonMouseOverHandler);
-        startButton.addEventListener('mouseout', buttonMouseOutHandler);
+    function handleButtonAction(symbolsData: TfallingSymbol[]): void {
+        startButton.addEventListener('mouseup', buttonMouseUpHandler) ;
+        startButton.addEventListener('mousedown', buttonMouseDownHandler) ;
+        startButton.addEventListener('mouseover', buttonMouseOverHandler) ;
+        startButton.addEventListener('mouseout', buttonMouseOutHandler) ;
 
         function buttonMouseUpHandler(e: Event) {
-            startButton.src = buttonSrc.disabledButton;
+            startButton.src = buttonSrc.disabledButton ;
 
-            this.removeEventListener('mouseup', buttonMouseUpHandler);
-            this.removeEventListener('mousedown', buttonMouseDownHandler);
-            this.removeEventListener('mouseover', buttonMouseOverHandler);
-            this.removeEventListener('mouseout', buttonMouseOutHandler);
+            soundJS.play(startSoundId) ;
+
+            this.removeEventListener('mouseup', buttonMouseUpHandler) ;
+            this.removeEventListener('mousedown', buttonMouseDownHandler) ;
+            this.removeEventListener('mouseover', buttonMouseOverHandler) ;
+            this.removeEventListener('mouseout', buttonMouseOutHandler) ;
 
             startReelSpining(symbolsData) ;
         };
@@ -174,5 +186,44 @@ window.addEventListener('load', () => {
         function buttonMouseOutHandler(e: Event) {
             startButton.src = buttonSrc.normalButton;
         };
+    };
+
+    function createStopSoundsIds(amountStopSounds: number): string[] {
+        const baseStopName: string = 'Reel_Stop_' ;
+        const stopSoundsIds = [] ;
+
+        for (let i = 1; i <= amountStopSounds; i++) {
+            const id = `${baseStopName}${i}` ;
+            stopSoundsIds.push(id) ;
+        }
+
+        return stopSoundsIds;
+    };
+
+    function createSoundsData(startId: string, stopIds: string[]): TsoundData[] {
+        const soundsData = [] ;
+        const extension: string = '.mp3' ;
+        const startSoundData: TsoundData = { src: `${startId}${extension}`, id: `${startId}` } ;
+
+        soundsData.push(startSoundData) ;
+
+        stopIds.forEach((stopId: string, index: number): void => {
+            const soundNumber: number = index + 1 ;
+            const stopSoundData: TsoundData = { src: `${stopId}${extension}`, id: `${stopId}` } ;
+
+            soundsData.push(stopSoundData) ;
+        });
+
+        return soundsData ;
+    };
+
+    function playStopSound(): void {
+        const maxNumber: number = stopSoundsIds.length ;
+        const randomNumber: number = Math.floor(Math.random() * maxNumber) ;
+        const stopSoundId: string = stopSoundsIds[randomNumber] ;
+
+        soundJS.play(stopSoundId) ;
+
+        console.log(stopSoundId) ;
     };
 })
