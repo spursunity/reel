@@ -3,7 +3,7 @@ import '../css/main.css' ;
 
 window.addEventListener('load', () => {
     try {
-        const reel = new Reel(123, 3, 5) ;
+        const reel = new Reel(123, 3, 5, 11) ;
 
         reel.createReel() ;
     } catch (error) {

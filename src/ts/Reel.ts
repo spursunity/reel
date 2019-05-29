@@ -9,91 +9,96 @@ type TfallingSymbol = {
     delay: number,
     velocity: number
 } ;
-type TcontrolIs = {
-    reelSpining: boolean
-} ;
 type TsoundData = {
     src: string,
     id: string
 } ;
+type TbuttonSrc = {
+    normalButton: string,
+    hoverButton: string,
+    disabledButton: string,
+    pressedButton: string
+} ;
 
 class Reel {
     private soundJS: any = createjs.Sound ;
-    private soundsPath: string = './sounds/' ;
+    private baseSoundsPath: string = './sounds/' ;
     private stopSoundsIds: string[] ;
     private startSoundId: string = 'Start_Button' ;
     private sounds: TsoundData[] ;
 
     private maskSize: {width: number, height: number} ;
-    private fallingVelocity: number = 10 ;
     private app: any ;
     private reel: HTMLElement = document.querySelector('#reel') ;
     private startButton: HTMLImageElement = document.querySelector('#button') ;
-    private symbols: TfallingSymbol[] ;
-    private symbolsSrc: string[] = [
-        './images/symbols/symbol_1.png',
-        './images/symbols/symbol_2.png',
-        './images/symbols/symbol_3.png',
-        './images/symbols/symbol_4.png',
-        './images/symbols/symbol_5.png',
-        './images/symbols/symbol_6.png',
-        './images/symbols/symbol_7.png',
-        './images/symbols/symbol_8.png'
-    ] ;
-    private buttonSrc = {
-        normalButton: <string>'./images/ui/btn_spin_normal.png',
-        hoverButton: <string>'./images/ui/btn_spin_hover.png',
-        disabledButton: <string>'./images/ui/btn_spin_disabled.png',
-        pressedButton: <string>'./images/ui/btn_spin_pressed.png'
+    private symbolsPath: {
+        basePath: string,
+        ext: string,
+        amount: number
+    } = {
+        basePath: './images/symbols/symbol_',
+        ext: '.png',
+        amount: 8
     } ;
+    private symbols: TfallingSymbol[] ;
+    private symbolsSrc: string[] ;
+    private buttonPathes: {
+        basePath: string,
+        ext: string,
+        states: any
+    } = {
+        basePath: './images/ui/btn_spin_',
+        ext: '.png',
+        states: {
+            normalButton: <string>'normal',
+            hoverButton: <string>'hover',
+            disabledButton: <string>'disabled',
+            pressedButton: <string>'pressed'
+        }
+    } ;
+    private buttonSrc: any ;
 
-    constructor(private symbolWidth: number, private rows: number, private columns: number) {  }
+    constructor(private symbolWidth: number, private rows: number, private columns: number, private fallingVelocity: number) {  }
 
     public createReel(): void {
         this.setApp() ;
-        this.reel.appendChild(this.app.view) ;
+        this.createButtonSrc() ;
         this.createSoundsData() ;
+        this.createSymbolsSrc() ;
 
+        const { app, symbolsSrc } = this ;
 
-        this.app.loader
-        .add(this.symbolsSrc)
+        this.reel.appendChild(app.view) ;
+
+        app.loader
+        .add(symbolsSrc)
         .load((loader: any, resources: any) => {
-            const maskHeight: number = this.app.renderer.height;
-            const createNewImages: Function = () => this.createImages(this.symbolsSrc, maskHeight, resources) ;
-            const control: TcontrolIs = {
+            this.symbols = this.createImages(resources) ;
+            const control: { reelSpining: boolean } = {
                 reelSpining: false
             } ;
-            this.symbols = createNewImages() ;
 
-            this.handleButtonAction() ;
-
-            this.app.ticker.add((delta: any): void => gameLoop(delta)) ;
+            this.setButtonHandlers() ;
+            app.ticker.add((delta: any): void => gameLoop(delta)) ;
 
             const gameLoop = (delta: any): void => {
                 this.symbols.forEach((symb: TfallingSymbol) => {
-                    const { image, endY, velocity } = symb ;
-                    const remainingDistance: number = endY - image.y ;
+                    const { velocity } = symb ;
 
-                    image.y += velocity ;
+                    this.moveSymbol(symb) ;
                     control.reelSpining = velocity > 0 ;
 
-                    if (remainingDistance === 0 && control.reelSpining) {
-                        this.playStopSound() ;
-
-                        symb.velocity = 0 ;
-                    } else if (remainingDistance > 0 && remainingDistance < velocity) {
-                        image.y = endY ;
+                    if (this.checkSymbolShouldStop(symb)) {
+                        this.stopFallingSymbol(symb) ;
                     }
                 });
 
 
-                if (this.symbols.every((item: TfallingSymbol) => item.image.y > maskHeight)) {
-                    this.symbols = createNewImages() ;
+                if (this.checkReelShouldStart()) {
+                    this.symbols = this.createImages(resources) ;
                     this.startReelSpining() ;
-                    console.log('start') ;
-                } else if ( this.symbols.every((item: TfallingSymbol) => item.velocity === 0) && control.reelSpining ) {
-                    this.handleButtonAction() ;
-                    console.log('stop') ;
+                } else if (this.checkReelShouldStop(control)) {
+                    this.setButtonHandlers() ;
                     control.reelSpining = false ;
                 }
             }
@@ -101,8 +106,9 @@ class Reel {
     }
 
     private setMaskSize(): void {
-        const width: number = this.symbolWidth * this.columns ;
-        const height: number = this.symbolWidth * (this.rows + 1) ;
+        const { symbolWidth, rows, columns } = this ;
+        const width: number = symbolWidth * columns ;
+        const height: number = symbolWidth * (rows + 1) ;
 
         this.maskSize = { width, height } ;
     }
@@ -113,20 +119,82 @@ class Reel {
         this.app = new PIXI.Application(this.maskSize) ;
     }
 
-    private createImages(arrSrc: string[], maskHeight: number, resources: any): TfallingSymbol[] {
+    private createStopSoundsIds(amountStopSounds: number): void {
+        const baseStopName: string = 'Reel_Stop_' ;
+        const ids = [] ;
+
+        for (let i = 1; i <= amountStopSounds; i++) {
+            const id = `${baseStopName}${i}` ;
+            ids.push(id) ;
+        }
+
+        this.stopSoundsIds = ids ;
+    }
+
+    private createSoundsData(): void {
+        this.createStopSoundsIds(5) ;
+
+        const { startSoundId, stopSoundsIds } = this ;
+        const soundsData = [] ;
+        const extension: string = '.mp3' ;
+        const startSoundData: TsoundData = { src: `${startSoundId}${extension}`, id: `${startSoundId}` } ;
+
+        soundsData.push(startSoundData) ;
+
+        stopSoundsIds.forEach((stopId: string): void => {
+            const stopSoundData: TsoundData = { src: `${stopId}${extension}`, id: `${stopId}` } ;
+
+            soundsData.push(stopSoundData) ;
+        });
+
+        this.sounds = soundsData ;
+        this.soundJS.registerSounds( this.sounds, this.baseSoundsPath ) ;
+    }
+
+    private createSymbolsSrc(): void {
+        const { basePath, ext, amount } = this.symbolsPath ;
+        const sources = [] ;
+
+        for (let i = 1; i <= amount; i++) {
+            const path: string = `${basePath}${i}${ext}` ;
+
+            sources.push(path) ;
+        }
+
+        this.symbolsSrc = sources ;
+    }
+
+    private createButtonSrc(): void {
+        const { basePath, ext, states } = this.buttonPathes ;
+        const sources: any = {} ;
+
+        for (const key in states) {
+            if (states.hasOwnProperty(key)) {
+                const state: string = states[key] ;
+                const path: string = `${basePath}${state}${ext}` ;
+
+                sources[key] = path ;
+            }
+        }
+
+        this.buttonSrc = sources ;
+    }
+
+    private createImages(resources: any): TfallingSymbol[] {
         const symbols: TfallingSymbol[] = [] ;
         const symbolsInRow: number = this.columns ;
         const symbolsInColumn: number = this.rows ;
         const symbolsAmount: number = symbolsInRow * symbolsInColumn ;
-        const { symbolWidth } = this ;
+        const { symbolWidth, symbolsSrc, app } = this ;
+        const { height: maskHeight } = app.renderer ;
 
         const startVelocity: number = 0 ;
         let columnCounter: number = 0 ;
         let rowCounter: number = 1 ;
 
         for (let i = 0; i < symbolsAmount; i++) {
-            const index = Math.floor(Math.random() * arrSrc.length) ;
-            const imagePath = arrSrc[index] ;
+            const index = Math.floor(Math.random() * symbolsSrc.length) ;
+            const imagePath = symbolsSrc[index] ;
             const symbolInitialData: TfallingSymbol = {
                 image: new PIXI.Sprite(resources[imagePath].texture),
                 width: symbolWidth,
@@ -178,7 +246,7 @@ class Reel {
         });
     }
 
-    private handleButtonAction(): void {
+    private setButtonHandlers(): void {
         const { startButton } = this ;
 
         startButton.addEventListener('mouseup', this.buttonMouseUpHandler) ;
@@ -190,14 +258,13 @@ class Reel {
     private buttonMouseUpHandler = (e: Event): void => {
         const { startButton, buttonSrc } = this ;
 
-        startButton.src = buttonSrc.disabledButton ;
-        this.soundJS.play(this.startSoundId) ;
-
         startButton.removeEventListener('mouseup', this.buttonMouseUpHandler) ;
         startButton.removeEventListener('mousedown', this.buttonMouseDownHandler) ;
         startButton.removeEventListener('mouseover', this.buttonMouseOverHandler) ;
         startButton.removeEventListener('mouseout', this.buttonMouseOutHandler) ;
 
+        startButton.src = buttonSrc.disabledButton ;
+        this.soundJS.play(this.startSoundId) ;
         this.startReelSpining() ;
     }
 
@@ -219,36 +286,35 @@ class Reel {
         startButton.src = buttonSrc.normalButton;
     }
 
-    private createStopSoundsIds(amountStopSounds: number): void {
-        const baseStopName: string = 'Reel_Stop_' ;
-        const ids = [] ;
-
-        for (let i = 1; i <= amountStopSounds; i++) {
-            const id = `${baseStopName}${i}` ;
-            ids.push(id) ;
-        }
-
-        this.stopSoundsIds = ids ;
+    private moveSymbol(symbolData: TfallingSymbol): void {
+        symbolData.image.y += symbolData.velocity ;
     }
 
-    private createSoundsData(): void {
-        this.createStopSoundsIds(5) ;
+    private checkSymbolShouldStop(symbolData: TfallingSymbol): boolean {
+        const { endY, image, velocity } = symbolData ;
+        const { y: positionY } = image ;
+        const remainingDistance: number = endY - positionY ;
 
-        const { startSoundId, stopSoundsIds } = this ;
-        const soundsData = [] ;
-        const extension: string = '.mp3' ;
-        const startSoundData: TsoundData = { src: `${startSoundId}${extension}`, id: `${startSoundId}` } ;
+        return remainingDistance >= 0 && remainingDistance < velocity ;
+    }
 
-        soundsData.push(startSoundData) ;
+    private stopFallingSymbol(symbolData: TfallingSymbol): void {
+        symbolData.image.y = symbolData.endY ;
+        symbolData.velocity = 0 ;
+        this.playStopSound() ;
+    }
 
-        stopSoundsIds.forEach((stopId: string): void => {
-            const stopSoundData: TsoundData = { src: `${stopId}${extension}`, id: `${stopId}` } ;
+    private checkReelShouldStart(): boolean {
+        const { symbols, app } = this ;
+        const { height: maskHeight } = app.renderer ;
 
-            soundsData.push(stopSoundData) ;
-        });
+        return symbols.every((symb: TfallingSymbol) => symb.image.y > maskHeight) ;
+    }
 
-        this.sounds = soundsData ;
-        this.soundJS.registerSounds( this.sounds, this.soundsPath ) ;
+    private checkReelShouldStop(control: { reelSpining: boolean }): boolean {
+        const { symbols } = this ;
+
+        return symbols.every((symb: TfallingSymbol) => symb.velocity === 0) && control.reelSpining ;
     }
 
     private playStopSound(): void {
@@ -258,8 +324,6 @@ class Reel {
         const stopSoundId: string = stopSoundsIds[randomNumber] ;
 
         this.soundJS.play(stopSoundId) ;
-
-        console.log(stopSoundId) ;
     }
 }
 

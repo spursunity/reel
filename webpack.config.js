@@ -33,17 +33,6 @@ module.exports = {
 						use: ["source-map-loader"],
 						enforce: "pre"
                     }, {
-                        test: /\.(png|jpe?g|gif)$/,
-                        use: [
-                            {
-                                loader: 'file-loader',
-                                options: {
-                                    outputPath: 'images',
-                                    name: '[path][name].[ext]'
-                                }
-                            }
-                        ]
-                    }, {
                         test: /\.tsx?$/,
                         use: 'ts-loader',
                         exclude: [
