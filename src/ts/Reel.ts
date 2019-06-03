@@ -1,4 +1,5 @@
 import PIXI from '../js/pixi-module.js' ;
+import StartButton from './StartButton' ;
 
 type TfallingSymbol = {
     image: any,
@@ -24,7 +25,6 @@ class Reel {
     private maskSize: {width: number, height: number} ;
     private app: any ;
     private reel: HTMLElement = document.querySelector('#reel') ;
-    private startButton: HTMLImageElement = document.querySelector('#button') ;
     private symbolsPath: {
         basePath: string,
         ext: string,
@@ -36,27 +36,14 @@ class Reel {
     } ;
     private symbols: TfallingSymbol[] ;
     private symbolsSrc: string[] ;
-    private buttonPathes: {
-        basePath: string,
-        ext: string,
-        states: any
-    } = {
-        basePath: './images/ui/btn_spin_',
-        ext: '.png',
-        states: {
-            normalButton: <string>'normal',
-            hoverButton: <string>'hover',
-            disabledButton: <string>'disabled',
-            pressedButton: <string>'pressed'
-        }
-    } ;
-    private buttonSrc: any ;
+
+    private startButton = new StartButton() ;
 
     constructor(private symbolWidth: number, private rows: number, private columns: number, private fallingVelocity: number) {  }
 
     public createReel(): void {
         this.setApp() ;
-        this.createButtonSrc() ;
+        this.startButton.createButtonSrc() ;
         this.createSoundsData() ;
         this.createSymbolsSrc() ;
 
@@ -66,11 +53,12 @@ class Reel {
         .add(this.symbolsSrc)
         .load((loader: any, resources: any) => {
             this.symbols = this.createImages(resources) ;
-            const control: { reelSpining: boolean } = {
-                reelSpining: false
+            const control: { reelSpining: boolean, playSound: boolean } = {
+                reelSpining: false,
+                playSound: true
             } ;
 
-            this.setButtonHandlers() ;
+            this.startButton.setButtonHandlers(this.startReelSpining.bind(this, control.playSound)) ;
             this.app.ticker.add((delta: any): void => gameLoop(delta)) ;
 
             const gameLoop = (delta: any): void => {
@@ -90,7 +78,7 @@ class Reel {
                     this.symbols = this.createImages(resources) ;
                     this.startReelSpining() ;
                 } else if (this.checkReelShouldStop(control)) {
-                    this.setButtonHandlers() ;
+                    this.startButton.setButtonHandlers(this.startReelSpining.bind(this, control.playSound)) ;
                     control.reelSpining = false ;
                 }
             }
@@ -157,25 +145,6 @@ class Reel {
         this.symbolsSrc = sources ;
     }
 
-    private createButtonSrc(): void {
-        // const { basePath, ext, states } = this.buttonPathes ;
-        const buttonBasePath = this.buttonPathes.basePath ;
-        const buttonExt = this.buttonPathes.ext ;
-        const buttonStates = this.buttonPathes.states ;
-        const sources: any = {} ;
-
-        for (const key in buttonStates) {
-            if (buttonStates.hasOwnProperty(key)) {
-                const state: string = buttonStates[key] ;
-                const path: string = `${buttonBasePath}${state}${buttonExt}` ;
-
-                sources[key] = path ;
-            }
-        }
-
-        this.buttonSrc = sources ;
-    }
-
     private createImages(resources: any): TfallingSymbol[] {
         const symbols: TfallingSymbol[] = [] ;
         const symbolsInRow: number = this.columns ;
@@ -233,52 +202,16 @@ class Reel {
         this.app.stage.addChild(symbolItem.image) ;
     }
 
-    private startReelSpining(): void {
+    private startReelSpining(playSound?: boolean): void {
+        if (playSound) {
+            this.soundJS.play(this.startSoundId) ;
+        }
+
         this.symbols.forEach((symbolItem: TfallingSymbol) => {
             setTimeout(() => {
                 symbolItem.velocity = this.fallingVelocity;
             }, symbolItem.delay);
         });
-    }
-
-    private setButtonHandlers(): void {
-        // const { startButton } = this ;
-
-        this.startButton.addEventListener('mouseup', this.buttonMouseUpHandler) ;
-        this.startButton.addEventListener('mousedown', this.buttonMouseDownHandler) ;
-        this.startButton.addEventListener('mouseover', this.buttonMouseOverHandler) ;
-        this.startButton.addEventListener('mouseout', this.buttonMouseOutHandler) ;
-    }
-
-    private buttonMouseUpHandler = (e: Event): void => {
-        // const { startButton, buttonSrc } = this ;
-
-        this.startButton.removeEventListener('mouseup', this.buttonMouseUpHandler) ;
-        this.startButton.removeEventListener('mousedown', this.buttonMouseDownHandler) ;
-        this.startButton.removeEventListener('mouseover', this.buttonMouseOverHandler) ;
-        this.startButton.removeEventListener('mouseout', this.buttonMouseOutHandler) ;
-
-        this.startButton.src = this.buttonSrc.disabledButton ;
-        this.soundJS.play(this.startSoundId) ;
-        this.startReelSpining() ;
-    }
-
-    private buttonMouseDownHandler = (e: Event): void => {
-        // const { startButton, buttonSrc } = this ;
-
-        this.startButton.src = this.buttonSrc.pressedButton;
-    }
-
-    private buttonMouseOverHandler = (e: Event): void => {
-        // const { startButton, buttonSrc } = this ;
-
-        this.startButton.src = this.buttonSrc.hoverButton;
-    }
-
-    private buttonMouseOutHandler = (e: Event): void => {
-        // const { startButton, buttonSrc } = this ;
-
-        this.startButton.src = this.buttonSrc.normalButton;
     }
 
     private moveSymbol(symbolData: TfallingSymbol): void {
