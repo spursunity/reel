@@ -1,7 +1,9 @@
 .DS_Store
 node_modules
 _unpublic
-# /dist
+dist
+build
+
 
 # local env files
 .env.local
@@ -22,3 +24,4 @@ yarn-error.log*
 *.sw*
 # *.json
 *.hot-update.js
+*.lock
